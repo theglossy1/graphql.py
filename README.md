@@ -1,9 +1,17 @@
-# Introduction
+# graphql
+
+## Introduction
 If you want to iterate through a bunch of GraphQL mutations, you can use graphql.py. It can either:
 1. Run one query or mutation against a list of IDs
-1. Run a list of queries or mutations
+2. Run a list of queries or mutations
 
-It requires three environment variables to be set or defined in a `.env` file:
+## Setting up Environment
+To install the required Python libraries, run:
+```
+pip install -Ur requirements.txt
+```
+
+It requires three environment variables to be set (or defined in a `.env` file):
 - `URI` is the URI of the GraphQL endpoint.
   - Example: `URI=https://example.sonar.software/api/graphql`
 - `BEARER_TOKEN` is the BEARER_TOKEN Personal Access Token.
