@@ -8,8 +8,21 @@
 #
 ####
 
-import sys, os, argparse, time, warnings, dotenv, itertools, datetime
-from aiohttp.client_exceptions import ContentTypeError
+import argparse
+import datetime
+import itertools
+import os
+import sys
+import time
+import warnings
+
+try:
+    import dotenv
+    from aiohttp.client_exceptions import ContentTypeError
+except ModuleNotFoundError:
+    print("Please install all the required dependencies by running:")
+    print(f'{sys.executable} -m pip install -Ur requirements.txt')
+    sys.exit(1)
 
 
 class MultiIterContext:
@@ -195,9 +208,10 @@ elif uniform_type == str:
 
 
 import asyncio
+import types
+
 import aiohttp
 import colorama
-import types
 
 max_requests = 1 if args.stop else args.retries + 1
 
