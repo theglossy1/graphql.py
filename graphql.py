@@ -17,6 +17,7 @@ import time
 import warnings
 
 try:
+    import crashreport
     import dotenv
     from aiohttp.client_exceptions import ContentTypeError
 except ModuleNotFoundError:
@@ -101,7 +102,7 @@ parser.add_argument("-u","--usage", action="store_true", dest="usage", help="Sho
 parser.add_argument("-l","--logfile", metavar="FILENAME", action="store", dest="logfile",
     help=f"Specify logfile; default is {default_logfile}-YYYYMMDDhhmmss.log",
     default=f"{default_logfile}-{time.strftime('%Y%m%d%H%M%S')}.log")
-parser.add_argument("-i","--input", metavar="FILENAME", type=argparse.FileType('r'),
+parser.add_argument("-i","--input", metavar="FILENAME", type=argparse.FileType('r', encoding='utf-8'),
     dest="file", help="Specify filename containing GraphQL query rather than reading from stdin")
 parser.add_argument("-c","--concurrency", metavar="COUNT", action="store", dest="concurrency", help="Concurrent requests to run; overrides value from environment",
         default=None, type=int)
@@ -125,12 +126,23 @@ if args.usage:
 if not args.IDs:
     graphql_help()
 
-def ctrlc(type,*args):
+def ctrlc(etype, value, tb, dump_path):
     "Ctrl+C handler"
-    if type==KeyboardInterrupt:
+    if isinstance(value, KeyboardInterrupt):
         state.stop_immediately = True
-    else:
-        sys.__excepthook__(type,*args)
+    elif isinstance(value, Exception):
+        name_to_show = ''
+        for char in value.__class__.__name__:
+            if char.isupper():
+                name_to_show += ' '
+            name_to_show += char.lower()
+        name_to_show = name_to_show.strip().capitalize()
+        message = f'A fatal error occured: {name_to_show}\n'
+        message += f'Crash dump saved to: {dump_path}'
+        print(message, file=sys.stderr)
+        if log_handler is not None:
+            print(message, file=log_handler)
+        sys.exit(1)
 
 def error():
     print(f"First parameter must be a number; for help run:\n\t{sys.argv[0]} -h")
@@ -151,7 +163,7 @@ for requiredVar in ('URI', 'BEARER_TOKEN'):
         quit()
 
 # Ctrl+C handling
-sys.excepthook = ctrlc
+crashreport.inject_excepthook(ctrlc)
 
 varList = get_ids(args.IDs)
 
@@ -200,7 +212,7 @@ if uniform_type == int:
 elif uniform_type == str:
     totalIDs = 0
     line_count = 0
-    with MultiIterContext(*(open(file) for file in varList)) as fps:
+    with MultiIterContext(*(open(file, encoding='utf-8') for file in varList)) as fps:
         for line in fps:
             totalIDs += bool(line.strip())
             line_count += 1
@@ -283,9 +295,9 @@ async def doQuery(state, sess: aiohttp.ClientSession, queryText, id):
     return -1
 
 
+state = types.SimpleNamespace()
 async def main():
     tasks = []
-    state = types.SimpleNamespace()
     state.doneTasks = 0
     state.activeTasks = 0
     state.stop_immediately = False
@@ -303,7 +315,7 @@ async def main():
                 queryText = query % varNumber
                 tasks.append(asyncio.create_task(doQuery(state, sess, queryText, varNumber)))
         else:
-            with MultiIterContext(*(open(file) for file in varList)) as fps:
+            with MultiIterContext(*(open(file, encoding='utf-8') for file in varList)) as fps:
                 for (i, line) in enumerate(fps):
                     line = line.strip()
                     if line:
