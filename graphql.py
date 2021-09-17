@@ -303,7 +303,7 @@ async def main():
     state.stop_immediately = False
 
     startTime = datetime.datetime.now()
-    message = f'Processing {totalIDs} lines/IDs with {concurrent_requests} concurrent requests on {URI} at {startTime}'
+    message = f'Processing {totalIDs} lines/IDs with {concurrent_requests} concurrent {"request" if concurrent_requests == 1 else "requests"} on {URI} at {startTime}'
     print(message)
     if log_handler is not None:
         print(message, file=log_handler)
