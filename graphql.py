@@ -312,7 +312,7 @@ async def main():
     }) as sess:
         if uniform_type == int:
             for varNumber in varList:
-                queryText = query % varNumber
+                queryText = query % ((varNumber,) * query.count('%i'))
                 tasks.append(asyncio.create_task(doQuery(state, sess, queryText, varNumber)))
         else:
             with MultiIterContext(*(open(file, encoding='utf-8') for file in varList)) as fps:
