@@ -2,3 +2,4 @@
 *.graphql
 *.dump
 *.log
+diff.sh

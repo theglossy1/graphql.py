@@ -109,7 +109,7 @@ parser.add_argument("-c","--concurrency", metavar="COUNT", action="store", dest=
 parser.add_argument("-r", "--retries", metavar="RETRIES", action="store", dest="retries", help="Number of retries if an item fails to get a response from the server. 0 means don't retry at all. Default is 3",
         default=3, type=int)
 parser.add_argument("-s", "--stop", action="store_true", dest="stop", help="Stop processing after hitting a failure (note, the program will wait for a response from the server for already-queued items)")
-parser.add_argument("-d", "--no-logging", action="store_false", dest="do_logging", help="Disable log file and only output to stdout")
+parser.add_argument("-d", "--disable-logging", action="store_false", dest="do_logging", help="Disable log file and only output to stdout")
 parser.add_argument('IDs', metavar="IDs|FILE", nargs="*", type=id_type, help="If using IDs, you can specify a range like 1-8, individual like 4 8 16 or a mix like 1-8 12 24. If using a file to read queries from, put the filename")
 args = parser.parse_args()
 
@@ -165,7 +165,7 @@ for requiredVar in ('URI', 'BEARER_TOKEN'):
 # Ctrl+C handling
 crashreport.inject_excepthook(ctrlc)
 
-varList = get_ids(args.IDs)
+varList = list(get_ids(args.IDs))
 
 if args.do_logging:
     try:
@@ -177,8 +177,6 @@ if args.do_logging:
 else:
     log_handler = None
 
-
-varList = list(varList)
 uniform_type = type(varList[0])
 for id in varList:
     if not isinstance(id, uniform_type):
@@ -226,9 +224,11 @@ import aiohttp
 import colorama
 
 max_requests = 1 if args.stop else args.retries + 1
-
+responseList = []
+lineList = []
 
 async def doQuery(state, sess: aiohttp.ClientSession, queryText, id):
+    global responseList
     while state.activeTasks >= concurrent_requests:
         await asyncio.sleep(0)
 
@@ -240,6 +240,7 @@ async def doQuery(state, sess: aiohttp.ClientSession, queryText, id):
                 state.doneTasks += 1
             percentComplete = round(state.doneTasks/totalIDs*100, 1)
             message = f"Processed {id:<{padding}} ({percentComplete:5}% complete) - "
+            responseList.append(id)
             error_code = resp.status
             try:
                 json = await resp.json()
@@ -302,6 +303,8 @@ async def main():
     state.activeTasks = 0
     state.stop_immediately = False
 
+    global lineList
+
     startTime = datetime.datetime.now()
     message = f'Processing {totalIDs} lines/IDs with {concurrent_requests} concurrent {"request" if concurrent_requests == 1 else "requests"} on {URI} at {startTime}'
     print(message)
@@ -318,17 +321,41 @@ async def main():
             with MultiIterContext(*(open(file, encoding='utf-8') for file in varList)) as fps:
                 for (i, line) in enumerate(fps):
                     line = line.strip()
+                    lineList.append(i+1)
+                    # print(f"Line {i+1} - {line}")
                     if line:
                         tasks.append(asyncio.create_task(doQuery(state, sess, line, i + 1)))
         results = await asyncio.gather(*tasks, return_exceptions=True)
-    success = results.count(200)
-    if success == totalIDs:
+
+    successes = results.count(200)  # count the number of 200 OK http responses
+
+    failures = set()
+    if successes == totalIDs:
         color = '\u001b[32;1m'
-    elif success == 0:
-        color = '\u001b[31;1m'
     else:
         color = '\u001b[33;1m'
-    message = f"{success}/{totalIDs} requests succeeded and logged to '{args.logfile}'. Time taken: {datetime.datetime.now() - startTime}"
+        if uniform_type == int:
+            for var in varList:
+                if var not in responseList:
+                    failures.add(var)
+            error_summary = "Never heard back from: " + ','.join([str(x) for x in sorted(list(failures))]).rstrip(",")
+        else:
+            for var in lineList:
+                if var not in responseList:
+                    failures.add(var)
+            error_summary = "Never heard back from the following input lines: " + ','.join([str(x) for x in sorted(list(failures))]).rstrip(",")
+
+
+    message = f"{successes}/{totalIDs} requests succeeded"
+    if args.do_logging:
+        message += f" and logged to '{args.logfile}'"
+    message += f". Time taken: {datetime.datetime.now() - startTime}"
+    if len(failures):
+        message += f"\n{error_summary}"
+    # message += f"\nLine count: {line_count}; totalIDs:{totalIDs} successes: {successes}"
+    # message += "\nLine List: " + ','.join([str(x) for x in lineList])
+    # message += "\nResponse List: " + ','.join([str(x) for x in responseList])
+
     print(color + message + '\u001b[0m')
     if log_handler is not None:
         print(message, file=log_handler)
