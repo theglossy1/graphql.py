@@ -106,7 +106,7 @@ parser.add_argument("-i","--input", metavar="FILENAME", type=argparse.FileType('
     dest="file", help="Specify filename containing GraphQL query rather than reading from stdin")
 parser.add_argument("-c","--concurrency", metavar="COUNT", action="store", dest="concurrency", help="Concurrent requests to run; overrides value from environment",
         default=None, type=int)
-parser.add_argument("-r", "--retries", metavar="RETRIES", action="store", dest="retries", help="Number of retries if an item fails to get a response from the server. 0 means don't retry at all. Default is 3",
+parser.add_argument("-r", "--retries", metavar="RETRIES", action="store", dest="retries", help="Number of retries if an item gets a 429 (Too Many Requests) response from the server. 0 means don't retry at all. Default is 3",
         default=3, type=int)
 parser.add_argument("-s", "--stop", action="store_true", dest="stop", help="Stop processing after hitting a failure (note, the program will wait for a response from the server for already-queued items)")
 parser.add_argument("-d", "--disable-logging", action="store_false", dest="do_logging", help="Disable log file and only output to stdout")
