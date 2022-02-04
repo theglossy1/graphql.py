@@ -11,6 +11,7 @@
 import argparse
 import datetime
 import itertools
+import json as _json
 import os
 import sys
 import time
@@ -238,8 +239,7 @@ async def doQuery(state, sess: aiohttp.ClientSession, queryText, id):
             state.activeTasks -= 1
             if resp.status != 429:
                 state.doneTasks += 1
-            percentComplete = round(state.doneTasks/totalIDs*100, 1)
-            message = f"Processed {id:<{padding}} ({percentComplete:5}% complete) - "
+            message = f"Processed {id:<{padding}} ({state.doneTasks} of {totalIDs} complete) - "
             responseList.append(id)
             error_code = resp.status
             try:
@@ -262,7 +262,7 @@ async def doQuery(state, sess: aiohttp.ClientSession, queryText, id):
                 error_code = -1
             else:
                 color = ('', '')
-            message += str(json)
+            message += _json.dumps(json)
             print(f'%s{message.replace("%", "%%")}%s' % color)
             if log_handler is not None:
                 print(message, file=log_handler)
