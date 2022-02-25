@@ -165,7 +165,7 @@ for requiredVar in ('URI', 'BEARER_TOKEN'):
 # Verify hostname resolution before running
 hostname = urlparse(URI).hostname
 try:
-    gethostbyname(URI)
+    gethostbyname(hostname)
 except Exception as e:
     print(f"CRITICAL ERROR: Could not resolve hostname '{hostname}' specified in URI environment variable '{URI}'")
     sys.exit(1)
