@@ -17,6 +17,9 @@ import sys
 import time
 import warnings
 
+from socket import gethostbyname
+from urllib.parse import urlparse
+
 try:
     import crashreport
     import dotenv
@@ -61,7 +64,7 @@ def graphql_help(quitter=True):
     helpText += "Also see https://github.com/theglossy1/graphql.py"
     if quitter:
         print(helpText)
-        quit()
+        sys.exit()
     else:
         return helpText
 
@@ -105,7 +108,7 @@ parser.add_argument("-l","--logfile", metavar="FILENAME", action="store", dest="
     default=f"{default_logfile}-{time.strftime('%Y%m%d%H%M%S')}.log")
 parser.add_argument("-i","--input", metavar="FILENAME", type=argparse.FileType('r', encoding='utf-8'),
     dest="file", help="Specify filename containing GraphQL query rather than reading from stdin")
-parser.add_argument("-c","--concurrency", metavar="COUNT", action="store", dest="concurrency", help="Concurrent requests to run; overrides value from environment",
+parser.add_argument("-c","--concurrency", metavar="COUNT", action="store", dest="concurrency", help="Concurrent requests to run; overrides value from environment. Maximum is 12",
         default=None, type=int)
 parser.add_argument("-r", "--retries", metavar="RETRIES", action="store", dest="retries", help="Number of retries if an item gets a 429 (Too Many Requests) response from the server. 0 means don't retry at all. Default is 3",
         default=3, type=int)
@@ -147,21 +150,34 @@ def ctrlc(etype, value, tb, dump_path):
 
 def error():
     print(f"First parameter must be a number; for help run:\n\t{sys.argv[0]} -h")
-    quit()
+    sys.exit(1)
 
 dotenv.load_dotenv(dotenv.find_dotenv(usecwd=True))
 URI = os.environ.get('URI')
 BEARER_TOKEN = os.environ.get('BEARER_TOKEN')
+
+# Verify both required environment variables are set
+for requiredVar in ('URI', 'BEARER_TOKEN'):
+    if globals()[requiredVar] is None:
+        print(requiredVar, "not defined in environment")
+        sys.exit(1)
+
+# Verify hostname resolution before running
+hostname = urlparse(URI).hostname
+try:
+    gethostbyname(URI)
+except Exception as e:
+    print(f"CRITICAL ERROR: Could not resolve hostname '{hostname}' specified in URI environment variable '{URI}'")
+    sys.exit(1)
+
 concurrent_requests = (
     int(os.environ.get('CONCURRENT_REQUESTS', 1))
     if args.concurrency is None
     else args.concurrency
 )
-
-for requiredVar in ('URI', 'BEARER_TOKEN'):
-    if globals()[requiredVar] is None:
-        print(requiredVar, "not defined in environment")
-        quit()
+if concurrent_requests > 12:
+    print(f"Setting concurrent requests to 12, as that's the maximum allowed (you specified {concurrent_requests})")
+    concurrent_requests = 12
 
 # Ctrl+C handling
 crashreport.inject_excepthook(ctrlc)
@@ -174,7 +190,7 @@ if args.do_logging:
         print(f"Logging to", args.logfile)
     except:
         print(f"Couldn't open {args.logfile} for writing; aborting!")
-        quit()
+        sys.exit(1)
 else:
     log_handler = None
 
@@ -207,7 +223,7 @@ if uniform_type == int:
 
     if '%i' not in query:
         print("There was no %i in the query... perhaps you should run it via GraphiQL")
-        quit()
+        sys.exit(1)
 elif uniform_type == str:
     totalIDs = 0
     line_count = 0
